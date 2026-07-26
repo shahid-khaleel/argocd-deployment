@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GitOps Demo - Login</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="card">
+  <h1>GitOps Demo</h1>
+  <p class="subtitle" id="subtitle">Sign in to continue</p>
+
+  <form id="login-form">
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required />
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required />
+
+    <button type="submit">Log in</button>
+  </form>
+
+  <div id="message" class="message hidden"></div>
+
+  <div id="dashboard" class="dashboard hidden">
+    <h2 id="dashboard-welcome"></h2>
+    <p>Signed in as <strong id="dashboard-user"></strong></p>
+    <p class="meta">App version: <span id="app-version">-</span></p>
+    <p class="meta">Served by pod: <span id="app-host">-</span></p>
+    <button id="logout-btn">Log out</button>
+  </div>
+
+  <p class="hint">Demo credentials are seeded from a Kubernetes Secret (default: admin / admin123).</p>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

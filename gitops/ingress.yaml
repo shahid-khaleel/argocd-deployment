@@ -1,0 +1,23 @@
+# Optional: requires `minikube addons enable ingress`.
+# Add "127.0.0.1 gitops-demo.local" to your hosts file, then run
+# `minikube tunnel` (or use `minikube ip`) to reach this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitops-demo
+  namespace: gitops-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: gitops-demo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitops-demo
+                port:
+                  number: 80

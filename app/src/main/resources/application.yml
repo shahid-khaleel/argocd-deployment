@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gitops-demo
+
+app:
+  version: ${APP_VERSION:1.0.0}
+  welcome-message: ${WELCOME_MESSAGE:Welcome to the GitOps demo app!}
+  auth:
+    username: ${DEMO_USERNAME:admin}
+    password: ${DEMO_PASSWORD:admin123}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    readinessstate:
+      enabled: true
+    livenessstate:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.shahid.gitopsdemo: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"

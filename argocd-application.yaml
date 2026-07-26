@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-demo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/shahid-khaleel/argocd-deployment.git
+    targetRevision: HEAD
+    path: gitops
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-demo
+
+  syncPolicy:
+    automated:
+      prune: true      # remove resources deleted from Git
+      selfHeal: true   # revert manual/out-of-band cluster drift
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
