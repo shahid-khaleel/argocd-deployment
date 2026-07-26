@@ -14,10 +14,13 @@ async function loadVersionInfo() {
     document.getElementById("app-version").textContent = data.version;
     document.getElementById("app-host").textContent = data.hostname;
     document.getElementById("dashboard-welcome").textContent = data.welcomeMessage;
+    document.getElementById("version-badge").textContent = `v${data.version}`;
   } catch (err) {
     console.error("Failed to load version info", err);
   }
 }
+
+loadVersionInfo();
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
