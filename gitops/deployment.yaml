@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: gitops-demo
-          image: shahid9741/argocd-deployment:1.0.0
+          image: shahid9741/argocd-deployment:1.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
