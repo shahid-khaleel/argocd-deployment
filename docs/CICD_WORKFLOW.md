@@ -57,3 +57,13 @@ Both paths end with an updated `gitops/deployment.yaml` on `main`. From there
 it's Argo CD's job (not CI's) to notice the Git change and reconcile the
 cluster — that hand-off from "Git changed" to "cluster changed" is the actual
 GitOps mechanism this project demonstrates.
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---|---|
+| Fails at **Log in to Docker Hub** | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` repo secrets aren't configured yet. Add them under **Settings → Secrets and variables → Actions**, then either push a new commit under `app/**` or re-run the job. |
+| Fails at **Commit and push updated manifest** with a non-fast-forward / rejected push | `main` advanced between this job's checkout and its push — most commonly from clicking **Re-run all jobs** in the GitHub UI, which replays against the *original* triggering commit rather than the current tip of `main`, so any commit landed since (by you, a teammate, or another workflow run) creates a race. The workflow handles this itself: before writing the manifest it re-fetches and hard-resets to `origin/main`, then retries the push up to 5 times with backoff. If you see this fail even after retries, something is pushing to `main` faster than one job can keep up with — check what else is automating pushes to this repo. |
+| Workflow never triggers on a push | Check the push actually touched a path listed under `on.push.paths` in [ci-cd.yml](../.github/workflows/ci-cd.yml) (`app/**` or the workflow file itself) — a `gitops/`-only change (like the manual release script produces) intentionally does *not* re-trigger this workflow, since that would create an infinite loop of CI re-deploying its own manifest commits. |
+| `docker push` denied when running `scripts/release.sh`/`.ps1` locally | Same fix as any local push: run `docker login` first (access token, not your account password). |
+| A live credential (Docker Hub token, etc.) ends up pasted in chat, a PR description, or committed by mistake | Treat it as compromised the moment that happens — rotate/revoke it (Docker Hub → Account Settings → Security) and issue a fresh one, rather than reusing it. Repo secrets should be the only place a token lives long-term; never commit one to a tracked file "as a variable," since anything committed is permanent in Git history once pushed. |

@@ -149,16 +149,28 @@ See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for the full walkthroug
 
 ## Troubleshooting
 
+Setup issues (build, install, first deploy):
+
 | Symptom | Likely cause / fix |
 |---|---|
 | `docker build` fails downloading dependencies | No internet access from the build stage — check your network/proxy. |
-| Argo CD app stuck `OutOfSync` | Check `argocd app get gitops-demo` / `kubectl -n argocd describe application gitops-demo` for the diff; confirm `gitops/deployment.yaml`'s image tag actually exists on Docker Hub. |
-| Argo CD app `Degraded` / pods `CrashLoopBackOff` | `kubectl -n gitops-demo logs deploy/gitops-demo` — usually a bad env var or the image failing to start. |
-| Pods `ImagePullBackOff` | Image/tag doesn't exist on Docker Hub yet, or it's private — either push it or make the Docker Hub repo public. |
-| Can't reach the Argo CD UI | Confirm the `kubectl port-forward` is still running in its terminal. |
-| `git push` to the GitOps repo rejected | Pull/rebase first (`git pull --rebase`) — the CI workflow or another teammate may have pushed a manifest update. |
+| `docker push` fails: `push access denied, repository does not exist or may require authorization` | Not logged in to Docker Hub in this shell — run `docker login` (use an access token as the password, not your account password). |
+| `kubectl apply` on the Argo CD install manifest fails: `metadata.annotations: Too long` | The `applicationsets.argoproj.io` CRD is too large for client-side apply's annotation. Use `kubectl apply --server-side --force-conflicts` instead (see [docs/ARGOCD_SETUP.md](docs/ARGOCD_SETUP.md)). |
+| Argo CD app stuck `Progressing` forever, never `Healthy` — even though pods show `2/2 Ready` | The `Ingress` has no address because `minikube addons enable ingress` was never run; Argo CD's health check waits on it indefinitely. Enable the addon (see [docs/MINIKUBE_SETUP.md](docs/MINIKUBE_SETUP.md)), or delete `gitops/ingress.yaml` if you don't need it. |
+| Pods `CrashLoopBackOff` right after a fresh deploy, especially on a slow/resource-constrained machine | JVM cold start can take 40–50s under tight CPU limits — the default liveness probe (20s delay) can kill the pod mid-boot. `gitops/deployment.yaml` already ships a `startupProbe` (150s budget) to guard against exactly this; if you loosen resource limits or probe timings later, watch for this regressing. |
+| Pods `ImagePullBackOff` | Image/tag doesn't exist on Docker Hub yet, or the repo is private — push it, or make the Docker Hub repo public. |
+| Argo CD app stuck `OutOfSync` | Check `argocd app get gitops-demo` / `kubectl -n argocd describe application gitops-demo` for the diff; confirm the image tag in `gitops/deployment.yaml` actually exists on Docker Hub. |
 | Login page loads but login fails | Confirm the `gitops-demo-secret` Secret's `DEMO_USERNAME`/`DEMO_PASSWORD` match what you're typing; check pod env with `kubectl -n gitops-demo exec deploy/gitops-demo -- env`. |
 | ConfigMap edit doesn't show up in the app | ConfigMap changes don't restart pods automatically — run `kubectl -n gitops-demo rollout restart deployment gitops-demo`. |
+
+Operational hiccups (things that happen while you're actively working with it):
+
+| Symptom | Likely cause / fix |
+|---|---|
+| `kubectl port-forward` to the app or Argo CD UI suddenly refuses connections, or logs `lost connection to pod` | `port-forward` against a Service binds to one specific pod, not the Service itself — if that pod was replaced (rollout, restart, crash), the tunnel dies with it. Just re-run the same `port-forward` command; it'll pick up a current pod. This happens on every rollout, so expect it. |
+| GitHub Actions fails at **Log in to Docker Hub** | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` repo secrets aren't set — add them under **Settings → Secrets and variables → Actions** (see [docs/CICD_WORKFLOW.md](docs/CICD_WORKFLOW.md)). |
+| GitHub Actions fails at **Commit and push updated manifest** with a non-fast-forward push error | `main` moved between checkout and push. The most common trigger is clicking **Re-run all jobs**, which replays against the *original* triggering commit rather than current `main`, so any commit that landed afterward creates a race. The workflow re-fetches and resets to `origin/main` before writing the manifest and retries the push up to 5 times, so this should self-heal — if it still fails after retries, something is pushing to `main` faster than the job can keep up (very unlikely outside heavy concurrent automation). |
+| `git push` to the repo rejected (manually, outside CI) | Pull/rebase first (`git pull --rebase`) — the CI workflow or a teammate likely pushed a manifest update in the meantime. |
 
 ## Cleanup
 

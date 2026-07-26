@@ -74,6 +74,14 @@ kubectl -n gitops-demo port-forward svc/gitops-demo 8080:80
 Open http://localhost:8080 and log in with `admin` / `admin123` (from the Secret).
 Check the version banner shows `1.0.0` (from the ConfigMap).
 
+> **Note:** `kubectl port-forward svc/gitops-demo` attaches to one specific pod
+> behind the Service, not the Service itself. Any time that pod is replaced —
+> a rollout, a restart, a crash — the tunnel dies with
+> `error: lost connection to pod` / `connection refused` in the browser. This
+> is expected, not a bug: just re-run the same `port-forward` command and it
+> reconnects to whichever pod is current. It'll happen again every time you
+> deploy a new version, including in step 7 below.
+
 ## 7. Demonstrate the GitOps update flow
 
 Two independent ways to prove "Git commit -> auto deploy":
@@ -120,6 +128,22 @@ immediately instead of waiting for its 3-minute poll. Not required for this
 demo — `minikube tunnel`/port-forward endpoints aren't publicly reachable
 anyway, so polling (or `argocd app sync`) is the practical option for a local
 cluster.
+
+## A startup timing gotcha on constrained nodes
+
+On a Minikube node sharing CPU with everything else on your laptop, this
+Spring Boot app can take 40–50 seconds to finish booting instead of the ~9s
+you'd see running it natively. If a Deployment only has `livenessProbe` /
+`readinessProbe` with a short `initialDelaySeconds`, Kubernetes can decide the
+container is unhealthy and kill it mid-boot — an endless restart loop that
+looks like the app is broken when it's actually just slow to start.
+`gitops/deployment.yaml` already includes a `startupProbe` (up to 150s budget)
+that gates the liveness/readiness checks until the app is actually up, so you
+shouldn't hit this — but if you ever tighten the probe timings or the
+resource limits, this is the first thing to suspect when pods start
+`CrashLoopBackOff`ing right after a rollout. `kubectl -n gitops-demo logs
+<pod> --previous` will show the app was mid-`Tomcat started` when it got
+killed.
 
 ## Self-healing demo (optional but convincing)
 
