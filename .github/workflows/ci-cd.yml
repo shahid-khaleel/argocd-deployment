@@ -48,15 +48,32 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/argocd-deployment:${{ steps.vars.outputs.tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/argocd-deployment:latest
 
-      - name: Update GitOps manifest with new image tag
-        run: |
-          sed -i "s|image: .*/argocd-deployment:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/argocd-deployment:${{ steps.vars.outputs.tag }}|" gitops/deployment.yaml
-
       - name: Commit and push updated manifest
+        env:
+          NEW_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/argocd-deployment:${{ steps.vars.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gitops/deployment.yaml
-          git diff --cached --quiet && echo "No manifest changes" && exit 0
-          git commit -m "ci: deploy image ${{ steps.vars.outputs.tag }}"
-          git push
+
+          # main may have moved since this job's own commit triggered it
+          # (another push landed first) - always edit against the latest
+          # tip instead of this job's now-stale checkout, and retry the
+          # push a few times in case of a continued race.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            sed -i "s|image: .*/argocd-deployment:.*|image: ${NEW_IMAGE}|" gitops/deployment.yaml
+            git add gitops/deployment.yaml
+            if git diff --cached --quiet; then
+              echo "No manifest changes"
+              exit 0
+            fi
+            git commit -m "ci: deploy image ${{ steps.vars.outputs.tag }}"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}), retrying against latest main..."
+            sleep $((attempt * 3))
+          done
+          echo "Failed to push after retries" >&2
+          exit 1
