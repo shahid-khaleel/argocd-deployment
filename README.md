@@ -175,9 +175,15 @@ Operational hiccups (things that happen while you're actively working with it):
 ## Cleanup
 
 ```bash
+# Stop any kubectl port-forward tunnels you have running
+# (Ctrl+C in their terminal, or on Windows/Git Bash: pkill -f "port-forward")
+
 # Remove the Argo CD-managed app + its namespace
 kubectl delete -f argocd-application.yaml
 kubectl delete namespace gitops-demo
+
+# Remove the ingress addon's namespace (optional, if you enabled it)
+kubectl delete namespace ingress-nginx
 
 # Remove Argo CD itself
 kubectl delete namespace argocd
@@ -186,9 +192,14 @@ kubectl delete namespace argocd
 minikube stop
 minikube delete
 
-# Local Docker cleanup
-docker rmi <dockerhub-user>/argocd-deployment:1.0.0
+# Local Docker image cleanup (adjust tags to whatever you actually built)
+docker images shahid9741/argocd-deployment --format "{{.Repository}}:{{.Tag}}" | xargs -r docker rmi
 ```
+
+Deleting `gitops-demo`/`argocd`/`ingress-nginx` and running `minikube delete`
+only touches this project's cluster resources — it doesn't affect any other
+Docker containers or images unrelated to this repo running on the same
+machine.
 
 ## Screenshots
 
