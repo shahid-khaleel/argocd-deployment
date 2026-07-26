@@ -79,8 +79,9 @@ git push -u origin main
 
 # 4. Stand up Minikube + Argo CD (see docs/ for full detail)
 minikube start --driver=docker
+minikube addons enable ingress   # needed for the app's Ingress to report Healthy
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
 kubectl -n argocd port-forward svc/argocd-server 8081:443 &
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 

@@ -53,13 +53,22 @@ apiserver: Running
 kubeconfig: Configured
 ```
 
-## 4. (Optional) Enable the Ingress addon
+## 4. Enable the Ingress addon
 
-Only needed if you plan to use `gitops/ingress.yaml` instead of port-forwarding:
+`gitops/ingress.yaml` is applied by Argo CD as part of this demo, so enable
+the addon before registering the Argo CD Application — otherwise the
+Ingress resource never gets an address and Argo CD reports the app's health
+as **Progressing** forever instead of **Healthy** (there's nothing wrong with
+the app itself in that case, just an Ingress with no controller behind it):
 
 ```bash
 minikube addons enable ingress
+kubectl -n ingress-nginx wait --for=condition=Ready pod -l app.kubernetes.io/component=controller --timeout=120s
 ```
+
+If you'd rather skip Ingress entirely, delete `gitops/ingress.yaml` from the
+repo (Service port-forwarding in [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) is
+enough to reach the app either way).
 
 ## 5. Useful commands
 

@@ -6,8 +6,13 @@ Assumes Minikube is already running (see [MINIKUBE_SETUP.md](MINIKUBE_SETUP.md))
 
 ```bash
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
 ```
+
+> `--server-side` avoids a common `kubectl apply` error on this manifest
+> (`metadata.annotations: Too long`) — the `applicationsets.argoproj.io` CRD
+> is large enough to exceed the `last-applied-configuration` annotation size
+> limit that client-side apply relies on.
 
 ## 2. Wait for all components to come up
 
