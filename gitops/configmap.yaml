@@ -4,5 +4,5 @@ metadata:
   name: gitops-demo-config
   namespace: gitops-demo
 data:
-  APP_VERSION: "1.0.0"
-  WELCOME_MESSAGE: "Welcome to the GitOps demo app!"
+  APP_VERSION: "1.0.1"
+  WELCOME_MESSAGE: "Welcome to the GitOps demo app! (updated via GitOps)"
