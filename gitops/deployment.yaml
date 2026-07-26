@@ -26,17 +26,21 @@ spec:
                 name: gitops-demo-config
             - secretRef:
                 name: gitops-demo-secret
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 30 # allow up to 150s for a slow first JVM start
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8080
-            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8080
-            initialDelaySeconds: 20
             periodSeconds: 15
           resources:
             requests:
