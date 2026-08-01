@@ -1,17 +1,85 @@
 # argocd-deployment
 
-A sample full-stack Java (Spring Boot) app deployed end-to-end with a GitOps
-workflow: **GitHub -> Docker Hub -> Argo CD -> Minikube**.
+[![CI/CD](https://github.com/shahid-khaleel/argocd-deployment/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/shahid-khaleel/argocd-deployment/actions/workflows/ci-cd.yml)
+[![Argo CD](https://img.shields.io/badge/Argo%20CD-GitOps-EF7B4D?logo=argo&logoColor=white)](https://argo-cd.readthedocs.io/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Minikube-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![GitOps](https://img.shields.io/badge/pattern-GitOps-2088FF)](#how-it-works)
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](app/pom.xml)
+[![Docker](https://img.shields.io/badge/Docker-multi--stage%20build-2496ED?logo=docker&logoColor=white)](app/Dockerfile)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+A sample full-stack Java (Spring Boot) app deployed end-to-end with a GitOps
+workflow: **GitHub -> Docker Hub -> Argo CD -> Minikube**. It exists to
+demonstrate a genuine, working GitOps loop — a real GitHub Actions pipeline
+builds and pushes an image, rewrites the deployment manifest, and Argo CD
+takes it from there, syncing and self-healing the cluster with no manual
+`kubectl apply` in the loop.
+
+## Table of contents
+
+- [Executive summary](#executive-summary)
+- [How it works](#how-it-works)
+- [Repository layout](#repository-layout)
+- [Technology stack](#technology-stack)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Documentation index](#documentation-index)
+- [Application details](#application-details)
+- [Build instructions](#build-instructions)
+- [Deployment steps (summary)](#deployment-steps-summary)
+- [Troubleshooting](#troubleshooting)
+- [Cleanup](#cleanup)
+- [Screenshots](#screenshots)
+- [Known Issues / Recommendations](#known-issues--recommendations)
+- [Status & Roadmap](#status--roadmap)
+- [License](#license)
+
+## Executive summary
+
+- **What it is:** a minimal Spring Boot app (login + version/health endpoints)
+  used purely as a payload to exercise a complete CI -> GitOps -> CD pipeline.
+- **What it proves:** a Git commit under `app/**` is enough, end to end, to
+  get a new container image running in a Kubernetes cluster — with no human
+  running `kubectl apply` or `docker push` by hand, and with drift correction
+  if someone tries to change the cluster out-of-band.
+- **What it's not:** a production reference architecture. Secrets are
+  plaintext demo credentials on purpose (see [Known Issues](#known-issues--recommendations)),
+  there's a single environment (no dev/staging/prod overlays), and the target
+  cluster is local Minikube, not a managed/production Kubernetes service.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Dev pushes to main<br/>app/** changes] --> B
+
+    subgraph CI["GitHub Actions - ci-cd.yml"]
+        direction LR
+        B[Checkout] --> C[Set up JDK 21]
+        C --> D[mvn clean package<br/>build + run tests]
+        D --> E[Compute image tag<br/>git short SHA]
+        E --> F[Docker Hub login]
+        F --> G[Build & push image<br/>:sha and :latest]
+        G --> H[Rewrite image tag in<br/>gitops/deployment.yaml]
+        H --> I[Commit & push to main<br/>retry on race w/ concurrent pushes]
+    end
+
+    subgraph CD["Argo CD (running in Minikube)"]
+        direction LR
+        J[Detect diff on gitops/ path<br/>poll or webhook] --> K[Sync]
+        K --> L[Apply manifests<br/>prune + selfHeal]
+    end
+
+    I -->|new commit on main| J
+    L --> M[Rolling update of the<br/>gitops-demo Deployment]
 ```
-GitHub (source) --build--> Docker image --push--> Docker Hub
-        |                                              |
-        v                                              v
-GitHub (gitops/ manifests) <--commit updates image tag--
-        |
-        v
-   Argo CD (in Minikube) --sync/self-heal--> Kubernetes Deployment
-```
+
+This is the literal sequence of jobs/steps in
+[`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) on the CI side,
+and the literal `syncPolicy` in
+[`argocd-application.yaml`](argocd-application.yaml) on the CD side —
+see [docs/CICD_WORKFLOW.md](docs/CICD_WORKFLOW.md) for the manual-script
+alternative to the Actions path.
 
 ## Repository layout
 
@@ -21,18 +89,22 @@ argocd-deployment/
 │   ├── src/main/java/...       # REST controllers (auth, health/version)
 │   ├── src/main/resources/     # application.yml, static/ (login page)
 │   ├── Dockerfile              # multi-stage build (Maven -> JRE)
-│   └── pom.xml
-├── gitops/                     # Manifests Argo CD watches
+│   ├── pom.xml
+│   └── README.md                # app-specific docs: endpoints, config, local run
+├── gitops/                     # Manifests Argo CD watches (source of truth for the cluster)
 │   ├── namespace.yaml
 │   ├── configmap.yaml
-│   ├── secret.yaml
+│   ├── secret.yaml               # demo-only plaintext credentials, see gitops/README.md
 │   ├── deployment.yaml
 │   ├── service.yaml
-│   └── ingress.yaml            # optional
+│   ├── ingress.yaml              # optional
+│   └── README.md                 # what each manifest does, how Argo CD consumes this dir
 ├── argocd-application.yaml     # Argo CD Application (applied once, manually)
-├── .github/workflows/ci-cd.yml # optional GitHub Actions CI/CD
-├── scripts/release.sh|ps1      # manual build->push->update->commit script
-└── docs/                       # detailed guides (linked below)
+├── .github/workflows/ci-cd.yml # GitHub Actions CI/CD (build, test, push image, update manifest)
+├── scripts/release.sh|ps1      # manual build->push->update->commit script (Actions alternative)
+├── docs/                       # detailed guides (full table below)
+├── screenshots/                 # captures of the working pipeline
+└── LICENSE                      # MIT
 ```
 
 ## Technology stack
@@ -95,14 +167,17 @@ kubectl -n gitops-demo port-forward svc/gitops-demo 8080:80
 # browse http://localhost:8080, log in with admin / admin123
 ```
 
-## Full documentation
+## Documentation index
 
 | Guide | Covers |
 |---|---|
-| [docs/MINIKUBE_SETUP.md](docs/MINIKUBE_SETUP.md) | Installing & starting Minikube, addons, troubleshooting |
-| [docs/ARGOCD_SETUP.md](docs/ARGOCD_SETUP.md) | Installing Argo CD, exposing the UI, admin password, CLI |
+| [docs/MINIKUBE_SETUP.md](docs/MINIKUBE_SETUP.md) | Installing & starting Minikube, enabling the Ingress addon, troubleshooting |
+| [docs/ARGOCD_SETUP.md](docs/ARGOCD_SETUP.md) | Installing Argo CD, exposing the UI, admin password, CLI login |
 | [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Full step-by-step: image -> Application -> sync -> proving auto-update & self-heal |
-| [docs/CICD_WORKFLOW.md](docs/CICD_WORKFLOW.md) | GitHub Actions pipeline and the manual release script alternative |
+| [docs/CICD_WORKFLOW.md](docs/CICD_WORKFLOW.md) | GitHub Actions pipeline stage-by-stage, plus the manual release script alternative |
+| [gitops/README.md](gitops/README.md) | What each manifest in `gitops/` does and how Argo CD's `syncPolicy` consumes the directory |
+| [app/README.md](app/README.md) | The Spring Boot app itself: endpoints, config sources, running/testing it standalone |
+| [screenshots/README.md](screenshots/README.md) | Suggested capture list for the pipeline in action |
 
 ## Application details
 
@@ -207,3 +282,59 @@ See [screenshots/](screenshots/) for captures of: the Spring Boot app running,
 the login UI, Docker Hub with the published image, `kubectl get pods,svc` in
 Minikube, Argo CD pods running, the Argo CD Application in **Healthy**/**Synced**
 state, and a successful redeploy triggered by a Git commit.
+
+## Known Issues / Recommendations
+
+Real findings from reviewing the current pipeline and manifests — not a
+generic checklist:
+
+- **Plaintext demo credentials in `gitops/secret.yaml`.** Already called out
+  in-file: this repo commits `stringData` in the clear on purpose, to
+  demonstrate the Secret -> Deployment wiring simply. Anyone adapting this
+  repo for a real environment should switch to Sealed Secrets, SOPS, or
+  External Secrets Operator before putting real credentials in it — plain
+  Kubernetes `Secret` objects are only base64-encoded, not encrypted, both in
+  Git and at rest in etcd.
+- **CI secrets are handled correctly.** `ci-cd.yml` sources `DOCKERHUB_USERNAME`
+  / `DOCKERHUB_TOKEN` exclusively from `${{ secrets.* }}` — no hardcoded
+  credentials found in the workflow or scripts.
+- **No image immutability / digest pinning.** `gitops/deployment.yaml` pins
+  images by mutable tag (git short-SHA, e.g. `shahid9741/argocd-deployment:34772ad`)
+  and CI also pushes a floating `:latest` tag. Short-SHA tags are effectively
+  immutable in practice here (a new commit always gets a new SHA), but the
+  Deployment doesn't pin by digest (`@sha256:...`), so nothing stops a
+  `docker push --force`-style overwrite of an existing tag from silently
+  changing what's running. Worth adding digest pinning if this pattern is
+  reused somewhere with weaker registry guarantees.
+- **No image scanning in CI.** The pipeline builds and pushes without a
+  vulnerability scan (e.g. Trivy/Grype) or SBOM generation step. Fine for a
+  demo; a gap if this became a real service.
+- **Single environment, no overlays.** `gitops/` is a flat manifest set for
+  one namespace/cluster — there's no Kustomize/Helm layering for dev/staging/prod.
+  Reasonable for a demo scoped to Minikube; would need restructuring to
+  support multiple environments.
+- **Test coverage is a context-load smoke test only** (`GitopsDemoApplicationTests`).
+  CI does run `mvn clean package`, which executes it, but there's no
+  controller-level test coverage for `/api/auth/login` or `/api/version`.
+- **Rollback runbook:** not currently documented as an explicit "how to roll
+  back" procedure. In practice, `git revert` on the manifest-updating commit
+  (or `scripts/release.sh <previous-version>`) plus Argo CD's normal sync
+  achieves it, but this isn't spelled out anywhere — worth adding to
+  [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) if the pipeline is
+  extended further.
+
+## Status & Roadmap
+
+**Working today:** the full loop in the diagram above — CI build/test/push,
+manifest rewrite, Argo CD sync and self-heal — is real and has been exercised
+through several tagged releases (see commit history: `1.0.0` -> `1.0.1` ->
+`1.1.0`).
+
+**Genuine gaps** (see [Known Issues](#known-issues--recommendations) for detail):
+image scanning in CI, digest pinning, a written rollback runbook, and
+controller-level test coverage. None of these block the demo; they're the
+first things to add if this pattern were promoted beyond a portfolio piece.
+
+## License
+
+[MIT](LICENSE) — see the [LICENSE](LICENSE) file.

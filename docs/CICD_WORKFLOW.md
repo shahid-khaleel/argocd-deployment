@@ -9,7 +9,8 @@ deploys). Pick whichever fits how you want to demo it.
 [`/.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) runs on every
 push to `main` that touches `app/**`:
 
-1. Checks out the repo, sets up JDK 21, builds the jar with Maven.
+1. Checks out the repo, sets up JDK 21, builds the jar with Maven
+   (`mvn -B clean package`, which also runs the test suite).
 2. Logs in to Docker Hub using repo secrets.
 3. Builds and pushes `<user>/argocd-deployment:<git-short-sha>` and `:latest`.
 4. Rewrites the image tag in `gitops/deployment.yaml`.
